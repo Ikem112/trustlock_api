@@ -1,0 +1,29 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+flask = "*"
+sqlalchemy = "*"
+flask-jwt = "*"
+flask-jwt-extended = "*"
+flask-sqlalchemy = "*"
+flask-bcrypt = "*"
+flask-marshmallow = "*"
+python-dotenv = "*"
+psycopg2 = "*"
+marshmallow-sqlalchemy = "*"
+requests = "*"
+flask-migrate = "*"
+sendgrid = "*"
+itsdangerous = "*"
+jinja2 = "*"
+redis = "*"
+nanoid = "*"
+celery = {extras = ["redis"], version = "*"}
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
