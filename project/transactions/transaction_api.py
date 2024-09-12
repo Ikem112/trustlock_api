@@ -491,3 +491,61 @@ def verify_payment():
         db.session.rollback()
         print(e)
         return jsonify({"status": "error", "message": "something went wrong"}), 500
+
+
+@transaction.put("confirm_product_delivery/<order_ref>")
+@jwt_required()
+@api_secret_key_required
+def confirm_product_delivery(order_ref):
+
+    try:
+        data = request.get_json()
+
+        is_delivered = data.get("is_delivered")
+
+        target_order = Order.query.filter_by(reference_no=order_ref).first()
+
+        if not target_order:
+            return (
+                jsonify(
+                    {"status": "error", "message": f"order {order_ref} doesn't exist"}
+                ),
+                400,
+            )
+
+        if target_order.product_delivered:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": f"delivery of order {order_ref} has already been confirmed",
+                    }
+                ),
+                400,
+            )
+
+        target_order.product_delivered = True
+        target_order.date_product_delivered = datetime.utcnow()
+
+        new_timeline = TransactionTimeline(
+            event_occurrance=f"Order {order_ref} has just been confirmed as delivered",
+            order=target_order,
+        )
+
+        db.session.add(new_timeline)
+        db.session.commit()
+
+        return (
+            jsonify(
+                {
+                    "status": "success",
+                    "message": "product status has been successfully updated",
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        print(e)
+        return jsonify({"status": "error", "message": "something went wrong"}), 500

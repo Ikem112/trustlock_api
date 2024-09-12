@@ -360,6 +360,8 @@ def register_business():
             country_of_operation=data.get("country_of_operation"),
             state_of_operation=data.get("state_of_operation"),
             product_sold=data.get("product_sold"),
+            bank_account_number=data.get("bank_account_number"),
+            bank_account_name=data.get("bank_account_name"),
             upper_bound_product_price_range=data.get("upper_price_range"),
             lower_bound_product_price_range=data.get("lower_price_range"),
             merchant=current_merchant,
