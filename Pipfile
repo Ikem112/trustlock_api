@@ -23,6 +23,7 @@ redis = "*"
 nanoid = "*"
 celery = {extras = ["redis"], version = "*"}
 apscheduler = "*"
+flask-apscheduler = "*"
 
 [dev-packages]
 

@@ -17,8 +17,8 @@ from flask_jwt_extended import (
 import re
 import json
 
-from project import db, jwt, bcrypt
-from project.helpers import calculate_fees, r_client
+from project import db, jwt, bcrypt, r_client
+from project.helpers import calculate_fees
 from . import transaction
 from project.api_services.paystack_api import PaystackClient
 from ..merchants.models import (
@@ -43,7 +43,6 @@ from ..merchants.models import (
 )
 
 from ..decorators import api_secret_key_required
-from project.helpers import r_client
 
 load_dotenv()
 
@@ -121,7 +120,8 @@ def initialize_order():
             total_amount_received=0.00,
             partial_dispersals=data.get("partial_dispersals"),
             partial_amount_to_be_dispersed=data.get("partial_amount_to_be_dispersed"),
-            product_inspection_time=data.get("inspection_time"),
+            inspection_time=data.get("inspection_time"),
+            order_initiated=True,
             merchant=current_merchant,
         )
 
@@ -362,6 +362,7 @@ def initiate_product_payment(order_ref_no):
 @api_secret_key_required
 def verify_payment():
 
+    # modification of code needed to accomodate sending of balance moeny
     try:
 
         ref_no = request.args.get("reference")
@@ -385,7 +386,7 @@ def verify_payment():
             balance_payment = amount_to_pay - naira_amount
             new_trans_entry = TransactionHistory(
                 amount=naira_amount,
-                trans_reference=response["data"]["reference"],
+                trans_reference=f'ps_res_{response["data"]["reference"]}',
                 sender="Buyer",
                 receiver="TrustLock",
                 trans_action="TrustLock Credit",
@@ -404,6 +405,8 @@ def verify_payment():
 
             target_order.total_amount_received = naira_amount
             target_order.amount_to_balance = balance_payment
+            target_order.date_updated = datetime.utcnow
+
             db.session.commit()
 
             from project.api_services.sendgrid_api import Mailer
@@ -458,6 +461,7 @@ def verify_payment():
             target_order.amount_verified = True
             target_order.order_commenced = True
             target_order.amount_to_balance = 0.00
+            target_order.date_updated = datetime.utcnow
             db.session.commit()
 
             from project.api_services.sendgrid_api import Mailer
@@ -525,10 +529,11 @@ def confirm_product_delivery(order_ref):
             )
 
         target_order.product_delivered = True
-        target_order.date_product_delivered = datetime.utcnow()
+        target_order.date_product_delivered = datetime.utcnow
+        target_order.date_updated = datetime.utcnow
 
         new_timeline = TransactionTimeline(
-            event_occurrance=f"Order {order_ref} has just been confirmed as delivered",
+            event_occurrance=f"Order {order_ref} has just been confirmed as delivered, inspection time initiated",
             order=target_order,
         )
 
@@ -545,6 +550,262 @@ def confirm_product_delivery(order_ref):
             200,
         )
 
+    except Exception as e:
+        db.session.rollback()
+        print(e)
+        return jsonify({"status": "error", "message": "something went wrong"}), 500
+
+
+@transaction.get("retrieve_conditions/<ref_no>")
+@jwt_required()
+@api_secret_key_required
+def retrieve_conditions(ref_no):
+    try:
+        target_order = Order.query.filter_by(reference_no=ref_no).first()
+        if not target_order:
+            return jsonify({"status": "failed", "message": "order not found"}), 400
+
+        target_conditions = target_order.transaction_condition
+
+        conditions_schema = TransactionConditionSchema(many=True)
+
+        conditions = conditions_schema.dump(target_conditions)
+
+        return (
+            jsonify(
+                {
+                    "status": "success",
+                    "message": "conditions retrieved successfully",
+                    "data": conditions,
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        print(e)
+        return jsonify({"status": "error", "message": "something went wrong"}), 500
+
+
+@transaction.put("validate_conditions/<ref_no>/<con_id>")
+@jwt_required()
+@api_secret_key_required
+def validate_conditions(ref_no, con_id):
+    try:
+        target_order = Order.query.filter_by(reference_no=ref_no).first()
+        if not target_order:
+            return jsonify({"status": "error", "message": "order doesnt exist"}), 400
+
+        target_condition = TransactionCondition.query.filter_by(
+            id=con_id, order=target_order
+        ).first()
+        if not target_condition:
+            return (
+                jsonify({"status": "error", "message": "condition doesnt exist"}),
+                400,
+            )
+
+        if not target_condition.condition_met:
+            target_condition.condition_met = True
+            target_condition.date_met = datetime.utcnow()
+            new_timeline = TransactionTimeline(
+                event_occurrance=f"Condition {target_condition.id} has been confirmed as met",
+                order=target_order,
+            )
+            db.session.add(new_timeline)
+            db.session.commit()
+            return (
+                jsonify(
+                    {
+                        "status": "success",
+                        "message": "condition succcesfully marked as met",
+                    }
+                ),
+                200,
+            )
+
+        else:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "condition has already been marked as met",
+                    }
+                ),
+                400,
+            )
+
+    except Exception as e:
+        db.session.rollback()
+        print(e)
+        return jsonify({"status": "error", "message": "something went wrong"}), 500
+
+
+@transaction.put("validate_all_conditions/<ref_no>")
+@jwt_required()
+@api_secret_key_required
+def validate_all_conditions(ref_no):
+    try:
+        target_order = Order.query.filter_by(reference_no=ref_no).first()
+        if not target_order:
+            return jsonify({"status": "error", "message": "order doesnt exist"}), 400
+
+        all_conditions_met = all(
+            condition.condition_met == True
+            for condition in target_order.transaction_condition
+        )
+
+        if all_conditions_met:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "all conditions have already been marked as met",
+                    }
+                ),
+                400,
+            )
+
+        for condition in target_order.transaction_condition:
+            condition.condition_met = True
+            condition.date_met = datetime.utcnow()
+            new_timeline = TransactionTimeline(
+                event_occurrance=f"Condition {condition.id} has been confirmed as met",
+                order=target_order,
+            )
+
+            db.session.add(new_timeline)
+            db.session.commit()
+
+        return (
+            jsonify(
+                {
+                    "status": "success",
+                    "message": "conditions succcesfully marked as met",
+                }
+            ),
+            200,
+        )
+    except Exception as e:
+        db.session.rollback()
+        print(e)
+        return jsonify({"status": "error", "message": "something went wrong"}), 500
+
+
+@transaction.put("verify_conditions_met/<ref_no>")
+@jwt_required()
+@api_secret_key_required
+def validate_all_conditions(ref_no):
+    try:
+        target_order = Order.query.filter_by(reference_no=ref_no).first()
+        if not target_order:
+            return jsonify({"status": "error", "message": "order doesnt exist"}), 400
+
+        all_conditions_met = all(
+            condition.condition_met == True
+            for condition in target_order.transaction_condition
+        )
+        if target_order.conditions_met:
+            return (
+                jsonify(
+                    {
+                        "status": "success",
+                        "message": "conditions have been succesfully verified already",
+                    }
+                ),
+                200,
+            )
+
+        if all_conditions_met:
+            target_order.conditions_met = True
+            target_order.date_updated = datetime.utcnow
+
+            new_timeline = TransactionTimeline(
+                event_occurrance=f"All conditions have been met and verified",
+                order=target_order,
+            )
+
+            db.session.add(new_timeline)
+            db.session.commit()
+
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "successfully verified all conditions, amount ready to be paid out to seller",
+                    }
+                ),
+                200,
+            )
+        else:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "all conditions havent been met, validate conditions first",
+                    }
+                ),
+                400,
+            )
+
+    except Exception as e:
+        db.session.rollback()
+        print(e)
+        return jsonify({"status": "error", "message": "something went wrong"}), 500
+
+
+@transaction.post("initialize_seller_payout/<ref_no>")
+@jwt_required()
+@api_secret_key_required
+def initialize_seller_payout(ref_no):
+    try:
+        target_order = Order.query.filter_by(reference_no=ref_no).first()
+        if not target_order:
+            return jsonify({"status": "error", "message": "order doesnt exist"}), 400
+
+        if not target_order.amount_verified:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "you're currently unable to proceed with disbursement",
+                    }
+                ),
+                400,
+            )
+
+        if (
+            target_order.instant_pay
+            and target_order.conditions_met
+            and not target_order.order_closed
+        ):
+            disbursement_amount = (
+                target_order.partial_amount_to_be_dispersed
+                if target_order.partial_dispersals
+                else target_order.product_amount
+            )
+
+            # initialize disbursement of funds to seller (check to confirm account details are valid and start processing payment)
+            target_order.dispursement_processing = True
+
+            new_timeline = TransactionTimeline(
+                event_occurrance=f"disbursement of funds for order {ref_no} has been successfully initialized and is waiting for verification",
+                order=target_order,
+            )
+            db.session.add(new_timeline)
+            db.session.commit()
+
+            return (
+                jsonify(
+                    {
+                        "status": "success",
+                        "message": "disbursement to seller has been successfully initiated",
+                    }
+                ),
+                200,
+            )
+        elif not target_order.instant_pay:
+            pass
     except Exception as e:
         db.session.rollback()
         print(e)

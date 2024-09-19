@@ -4,8 +4,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from flask_migrate import Migrate
 from flask_bcrypt import Bcrypt
+from flask_apscheduler import APScheduler
 from .config import configuration
-
+import redis
 
 
 # instantiating flask modules
@@ -15,6 +16,9 @@ ma = Marshmallow()
 jwt = JWTManager()
 bcrypt = Bcrypt()
 migrate = Migrate()
+scheduler = APScheduler()
+r_client = redis.Redis(host="localhost", port=6379, db=0)
+
 
 # function that initialises the modules, blueprints and config keys with the app object
 # ALWAYS CHANGE CONFIG KEY TO PRODUCTION WHEN PUSHING !!!
@@ -26,11 +30,13 @@ def create_app(config_type=configuration["development"]):
     db.init_app(app)
     jwt.init_app(app)
     bcrypt.init_app(app)
+    scheduler.init_app(app)
     migrate.init_app(app, db)
 
     status = "dev"
 
     with app.app_context():
+
         from .merchants import merchant as merchant_views
 
         app.register_blueprint(merchant_views, url_prefix=f"/api/{status}/v1")

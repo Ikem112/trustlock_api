@@ -17,7 +17,7 @@ import json
 
 
 from . import merchant
-from project import db, jwt, bcrypt
+from project import db, jwt, bcrypt, r_client
 from .models import (
     Merchant,
     MerchantSchema,
@@ -36,7 +36,6 @@ from .models import (
 
 from ..decorators import api_secret_key_required
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
-from project.helpers import r_client
 
 # this decorator and the one below are for assigning the current user from JWT
 # to a user from the db when a user logs in

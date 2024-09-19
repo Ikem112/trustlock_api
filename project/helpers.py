@@ -42,9 +42,6 @@ def get_payment_verification_template(file_name, payload: dict):
     return html_content
 
 
-r_client = redis.Redis(host="localhost", port=6379, db=0)
-
-
 def calculate_fees(price: float) -> tuple:
     """
     a function to calculate the fees to be paid given the price a customer wants to pay for a product or service

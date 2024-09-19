@@ -99,6 +99,7 @@ class BusinessDetails(db.Model):
     description = db.Column(db.Text, nullable=False)
     bank_account_number = db.Column(db.String(15), nullable=False)
     bank_account_name = db.Column(db.String(30), nullable=False)
+    bank_account_code = db.Column(db.String(10), default=None)
     receipient_code = db.Column(db.String(30), default=None)
     phone_no = db.Column(db.String(15), nullable=False, unique=True)
     email_address = db.Column(db.String(40), nullable=False, unique=True)
@@ -121,6 +122,9 @@ class BusinessDetailsSchema(ma.Schema):
             "id",
             "name",
             "description",
+            "bank_account_number",
+            "bank_account_name",
+            "bank_account_code",
             "phone_no",
             "email_address",
             "country_of_operation",
@@ -163,6 +167,7 @@ class Order(db.Model):
     dispute_resolved = db.Column(db.Boolean, default=False)
     amount_to_be_refunded = db.Column(db.Float, nullable=False, default=0)
     amount_refunded = db.Column(db.Boolean, default=False)
+    dispursement_processing = db.Column(db.Boolean, default=False)
     full_amount_dispersed = db.Column(db.Boolean, nullable=False, default=False)
     order_initiated = db.Column(db.Boolean, default=False, nullable=False)
     order_commenced = db.Column(db.Boolean, default=False, nullable=False)
@@ -207,10 +212,27 @@ class OrderSchema(ma.Schema):
             "initial_amount_received",
             "product_delivered",
             "product_inspected",
-            "product_inspection_time" "partial_dispersals",
+            "inspection_time",
+            "partial_dispersals",
             "conditions_met",
             "escrow_percent",
-            "balance_refunded",
+            "escrow_fee",
+            "process_fee",
+            "total_amount_received",
+            "partial_amount_to_be_dispersed",
+            "partial_amount_dispersed",
+            "date_product_delivered",
+            "exrta_time_initiated",
+            "extra_time_elapsed",
+            "dispute_resolved",
+            "amount_to_be_refunded",
+            "amount_refunded",
+            "order_initiated",
+            "order_commenced",
+            "order_closed",
+            "date_initiated",
+            "date_updated",
+            "date_closed",
             "full_amount_dispersed",
             "dispute_raised",
             "transaction_closed",
@@ -295,7 +317,7 @@ class TransactionCondition(db.Model):
     party_to_meet_condition = db.Column(db.String(10), nullable=False)
     condition_met = db.Column(db.Boolean, default=False, nullable=False)
     date_added = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    date_met = db.Column(db.DateTime)
+    date_met = db.Column(db.DateTime, default=None)
     order_id = db.Column(db.String(50), db.ForeignKey("Order.id"))
 
     def __repr__(self):
