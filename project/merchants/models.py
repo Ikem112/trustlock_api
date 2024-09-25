@@ -100,6 +100,7 @@ class BusinessDetails(db.Model):
     bank_account_number = db.Column(db.String(15), nullable=False)
     bank_account_name = db.Column(db.String(30), nullable=False)
     bank_account_code = db.Column(db.String(10), default=None)
+    bank_name = db.Column(db.String(30), nullable=False)
     receipient_code = db.Column(db.String(30), default=None)
     phone_no = db.Column(db.String(15), nullable=False, unique=True)
     email_address = db.Column(db.String(40), nullable=False, unique=True)
@@ -137,46 +138,61 @@ class BusinessDetailsSchema(ma.Schema):
 
 class Order(db.Model):
     __tablename__ = "Order"
-
     id = db.Column(
         db.String(50), primary_key=True, nullable=False, default=unique_id, index=True
     )
     reference_no = db.Column(db.String(50), nullable=False, index=True)
-    product_name = db.Column(db.String(20), nullable=False)
-    product_description = db.Column(db.Text)
-    product_amount = db.Column(db.Float, nullable=False)
-    escrow_percent = db.Column(db.Float, nullable=False)
-    escrow_fee = db.Column(db.Float, nullable=False)
-    process_fee = db.Column(db.Float, nullable=False)
-    amount_to_pay = db.Column(db.Float, nullable=False)
-    amount_to_balance = db.Column(db.Float)
-    total_amount_received = db.Column(db.Float, nullable=False)
-    amount_verified = db.Column(db.Boolean, default=False, nullable=False)
-    partial_dispersals = db.Column(db.Boolean, default=False, nullable=False)
-    partial_amount_dispersed = db.Column(db.Float, nullable=False, default=0)
-    partial_amount_to_be_dispersed = db.Column(db.Float, nullable=False, default=0)
-    product_delivered = db.Column(db.Boolean, nullable=False, default=False)
-    date_product_delivered = db.Column(db.DateTime, default=None)
-    product_inspected = db.Column(db.Boolean, nullable=False, default=False)
-    inspection_time = db.Column(db.Integer, nullable=False)
-    extra_time_initiated = db.Column(db.Boolean, default=False)
-    extra_time_elapsed = db.Column(db.Boolean, default=False)
-    instant_pay = db.Column(db.Boolean, default=True)
-    conditions_met = db.Column(db.Boolean, default=False, nullable=False)
-    dispute_raised = db.Column(db.Boolean, default=False)
-    dispute_resolved = db.Column(db.Boolean, default=False)
-    amount_to_be_refunded = db.Column(db.Float, nullable=False, default=0)
-    amount_refunded = db.Column(db.Boolean, default=False)
-    dispursement_processing = db.Column(db.Boolean, default=False)
-    full_amount_dispersed = db.Column(db.Boolean, nullable=False, default=False)
-    order_initiated = db.Column(db.Boolean, default=False, nullable=False)
+    order_initiated = db.Column(db.Boolean, default=True, nullable=False)
     order_commenced = db.Column(db.Boolean, default=False, nullable=False)
     order_closed = db.Column(db.Boolean, default=False, nullable=False)
     date_initiated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    date_updated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    date_closed = db.Column(db.DateTime, default=None)
+    date_commenced = db.Column(db.DateTime, default=None)
+    payment_initiated = db.Column(db.Boolean, default=False, nullable=False)
+    payment_abandoned = db.Column(db.Boolean, default=False, nullable=False)
+    full_payment_verified = db.Column(db.Boolean, default=False, nullable=False)
+    delivery_time_triggered = db.Column(db.Boolean, default=False, nullable=False)
+    need_to_balance = db.Column(db.Boolean, default=False, nullable=False)
+    product_overpay = db.Column(db.Boolean, default=False, nullable=False)
+    partial_dispersals = db.Column(db.Boolean, default=False, nullable=False)
+    product_sent_out = db.Column(db.Boolean, default=False, nullable=False)
+    seller_confirm_delivery = db.Column(db.Boolean, default=False, nullable=False)
+    buyer_confirm_delivery = db.Column(db.Boolean, default=False, nullable=False)
+    date_seller_confirm_delivery = db.Column(db.DateTime, default=None)
+    date_buyer_confirm_delivery = db.Column(db.DateTime, default=None)
+    inspection_time_triggered = db.Column(db.Boolean, default=False, nullable=False)
+    conditions_set = db.Column(db.Boolean, default=False, nullable=False)
+    conditions_met = db.Column(db.Boolean, default=False, nullable=False)
+    dispute_raised = db.Column(db.Boolean, default=False, nullable=False)
+    dispute_ongoing = db.Column(db.Boolean, default=False, nullable=False)
+    dispute_resloved = db.Column(db.Boolean, default=False, nullable=False)
+    product_to_be_returned = db.Column(db.Boolean, default=False, nullable=False)
+    product_return_commenced = db.Column(db.Boolean, default=False, nullable=False)
+    product_return_confirm_buyer = db.Column(db.Boolean, default=False, nullable=False)
+    product_return_confirm_seller = db.Column(db.Boolean, default=False, nullable=False)
+    refund_initiated = db.Column(db.Boolean, default=False, nullable=False)
+    refund_approved = db.Column(db.Boolean, default=False, nullable=False)
+    refund_processing = db.Column(db.Boolean, default=False, nullable=False)
+    refund_dispatched = db.Column(db.Boolean, default=False, nullable=False)
+    full_amount_refunded = db.Column(db.Boolean, default=False, nullable=False)
+    extra_time_initiated = db.Column(db.Boolean, default=False, nullable=False)
+    extra_time_elapsed = db.Column(db.Boolean, default=False, nullable=False)
+    seller_disbursement_approved = db.Column(db.Boolean, default=False, nullable=False)
+    seller_disbursement_initiated = db.Column(db.Boolean, default=False, nullable=False)
+    seller_disbursement_processing = db.Column(
+        db.Boolean, default=False, nullable=False
+    )
+    seller_disbursement_dispatched = db.Column(
+        db.Boolean, default=False, nullable=False
+    )
     special_attention = db.Column(db.Boolean, default=False, nullable=False)
+    date_updated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     merchant_id = db.Column(db.String(50), db.ForeignKey("Merchant.id"))
+    order_details = db.relationship(
+        "OrderDetails", cascade="all,delete", backref="order", uselist=False
+    )
+    delivery_information = db.relationship(
+        "DeliveryInformation", cascade="all,delete", backref="order"
+    )
     transaction_history = db.relationship(
         "TransactionHistory", cascade="all,delete", backref="order"
     )
@@ -196,6 +212,8 @@ class Order(db.Model):
 
 
 class OrderSchema(ma.Schema):
+    order_details = ma.Nested("TransactionHistorySchema")
+    delivery_information = ma.Nested("TransactionHistorySchema", many=True)
     transaction_history = ma.Nested("TransactionHistorySchema", many=True)
     transaction_condition = ma.Nested("TransactionConditionSchema", many=True)
     transaction_timeline = ma.Nested("TransactionTimelineSchema", many=True)
@@ -204,46 +222,52 @@ class OrderSchema(ma.Schema):
 
     class Meta:
         fields = (
-            "id",
             "reference_no",
-            "product_name",
-            "product_description",
-            "amount_verified",
-            "initial_amount_received",
-            "product_delivered",
-            "product_inspected",
-            "inspection_time",
-            "partial_dispersals",
-            "conditions_met",
-            "escrow_percent",
-            "escrow_fee",
-            "process_fee",
-            "total_amount_received",
-            "partial_amount_to_be_dispersed",
-            "partial_amount_dispersed",
-            "date_product_delivered",
-            "exrta_time_initiated",
-            "extra_time_elapsed",
-            "dispute_resolved",
-            "amount_to_be_refunded",
-            "amount_refunded",
-            "order_initiated",
-            "order_commenced",
-            "order_closed",
-            "date_initiated",
-            "date_updated",
-            "date_closed",
-            "full_amount_dispersed",
-            "dispute_raised",
-            "transaction_closed",
-            "date_initiated",
-            "date_updated",
+            "order_details",
+            "delivery_information",
             "transaction_history",
-            "transaction_condition",
             "transaction_timeline",
             "dispute",
             "customer",
         )
+
+
+class OrderDetails(db.Model):
+    __tabelname__ = "OrderDetails"
+
+    id = db.Column(
+        db.String(50), primary_key=True, nullable=False, default=unique_id, index=True
+    )
+    product_name = db.Column(db.String(30), nullable=False)
+    product_category = db.Column(db.String(20), nullable=False)
+    product_description = db.Column(db.Text)
+    product_amount = db.Column(db.Float, nullable=False)
+    escrow_percent = db.Column(db.Float, nullable=False)
+    escrow_fee = db.Column(db.Float, nullable=False)
+    process_fee = db.Column(db.Float, nullable=False)
+    amount_to_pay = db.Column(db.Float, nullable=False)
+    amount_paid = db.Column(db.Float, nullable=False)
+    amount_to_balance = db.Column(db.Float, default=0.0)
+    amount_overflow = db.Column(db.Float, default=0.0)
+    amount_to_partially_disburse = db.Column(db.Float, default=0.0)
+    amount_partially_disbursed = db.Column(db.Float, default=0.0)
+    amount_remaining_to_be_disbursed = db.Column(db.Float, default=0.0)
+    product_inspection_time = db.Column(db.Integer, nullable=False)
+    product_delivery_time = db.Column(db.Integer, nullable=False)
+    amount_to_refund = db.Column(db.Float, default=0.0)
+    amount_refunded = db.Column(db.Float, default=0.0)
+    total_amount_to_be_disbursed = db.Column(db.Float)
+    total_amount_disbursed = db.Column(db.Float, default=0.0)
+    date_updated = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    current_holdings_amount = db.Column(db.Float)
+    order_id = db.Column(db.String(50), db.ForeignKey("Order.id"))
+    details_metadata = db.Column(db.JSON, default=None)
+
+
+class OrderDetailsSchema(ma.Schema):
+    class Meta:
+        model = OrderDetails
+        exclude = ("id",)
 
 
 class TransactionHistory(db.Model):
@@ -253,11 +277,12 @@ class TransactionHistory(db.Model):
         db.String(50), primary_key=True, nullable=False, default=unique_id, index=True
     )
     amount = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), nullable=False)
     trans_reference = db.Column(db.String(50), nullable=False, unique=True)
     sender = db.Column(db.String(20), nullable=False)
     receiver = db.Column(db.String(20), nullable=False)
-    trans_action = db.Column(db.String(70), nullable=False)
     description = db.Column(db.Text, nullable=False)
+    remark = db.Column(db.Text, nullable=False)
     order_id = db.Column(db.String(50), db.ForeignKey("Order.id"))
 
 
@@ -269,8 +294,8 @@ class TransactionHistorySchema(ma.Schema):
             "trans_reference",
             "sender",
             "receiver",
-            "trans_action",
-            "description",
+            "remark",
+            "status" "description",
         )
 
 
@@ -282,10 +307,12 @@ class Customer(db.Model):
     )
     first_name = db.Column(db.String(20), nullable=False)
     last_name = db.Column(db.String(20), nullable=False)
+    bank_name = db.Column(db.String(40), default=None)
     bank_account_name = db.Column(db.String(30), default=None)
     bank_account_number = db.Column(db.String(30), default=None)
     bank_account_code = db.Column(db.String(10), default=None)
-    phone_no = db.Column(db.String(30), nullable=False, unique=True)
+    recepient_code = db.Column(db.String(50))
+    phone_no = db.Column(db.String(30), nullable=False)
     email_address = db.Column(db.String(50), nullable=False, unique=True)
     country = db.Column(db.String(20), nullable=False)
     city = db.Column(db.String(20), nullable=False)
@@ -314,10 +341,10 @@ class TransactionCondition(db.Model):
     )
     condition_title = db.Column(db.String(20), nullable=False)
     condition_description = db.Column(db.Text, nullable=False)
-    party_to_meet_condition = db.Column(db.String(10), nullable=False)
     condition_met = db.Column(db.Boolean, default=False, nullable=False)
     date_added = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     date_met = db.Column(db.DateTime, default=None)
+    dispute_raised = db.Column(db.Boolean, default=False, nullable=False)
     order_id = db.Column(db.String(50), db.ForeignKey("Order.id"))
 
     def __repr__(self):
@@ -330,7 +357,7 @@ class TransactionConditionSchema(ma.Schema):
             "id",
             "condition_title",
             "condition_description",
-            "party_to_meet_condition",
+            "dispute_raised",
             "condition_met",
             "date_added",
             "date_met",
@@ -344,12 +371,13 @@ class Dispute(db.Model):
         db.String(50), primary_key=True, nullable=False, default=unique_id, index=True
     )
     dispute_title = db.Column(db.String(20), nullable=False)
-    dispute_description = db.Column(db.Text, nullable=False)
+    dispute_reason = db.Column(db.Text, nullable=False)
     dispute_resolved = db.Column(db.Boolean, default=False, nullable=False)
     dispute_raised_date = db.Column(
         db.DateTime, nullable=False, default=datetime.utcnow
     )
     dispute_resolved_date = db.Column(db.DateTime)
+    condition_disputed = db.Column(db.String(50))
     order_id = db.Column(db.String(50), db.ForeignKey("Order.id"))
 
     def __repr__(self):
@@ -375,6 +403,7 @@ class TransactionTimeline(db.Model):
         db.String(50), primary_key=True, nullable=False, default=unique_id, index=True
     )
     event_occurrance = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(30))
     date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     order_id = db.Column(db.String(50), db.ForeignKey("Order.id"))
 
@@ -385,3 +414,23 @@ class TransactionTimeline(db.Model):
 class TransactionTimelineSchema(ma.Schema):
     class Meta:
         fields = ("event_occurrance", "date")
+
+
+class DeliveryInformation(db.Model):
+    __tablename__ = "DeliveryInformation"
+
+    id = db.Column(
+        db.String(50), primary_key=True, nullable=False, default=unique_id, index=True
+    )
+    delivery_courier = db.Column(db.String(30), default=None)
+    source_location = db.Column(db.Text, nullable=False)
+    destination_location = db.Column(db.Text, nullable=False)
+    delivery_means = db.Column(db.String(30), default=None)
+    tracking_number = db.Column(db.String(30), default=None)
+    special_instructions = db.Column(db.Text)
+    delivery_metadata = db.Column(db.JSON, default=None)
+
+
+class DeliveryInformationSchema(ma.Schema):
+    class Meta:
+        model = DeliveryInformation

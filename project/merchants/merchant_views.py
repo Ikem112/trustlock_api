@@ -35,6 +35,7 @@ from .models import (
 )
 
 from ..decorators import api_secret_key_required
+from ..api_services.paystack_api import PaystackClient, validate_account_details
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 
 # this decorator and the one below are for assigning the current user from JWT
@@ -350,6 +351,66 @@ def register_business():
                 ),
                 400,
             )
+        print("we are here")
+        valid_acc, va_stat_code = validate_account_details(
+            {
+                "bank_name": data.get("bank_name"),
+                "account_number": data.get("bank_account_number"),
+            }
+        )
+
+        if not valid_acc["status"]:
+            return (
+                jsonify({"status": "error", "message": valid_acc["message"]}),
+                va_stat_code,
+            )
+        acc_name = data.get("bank_account_name")
+        input_result = acc_name.replace("-", "")
+        input_result = input_result.lower()
+        input_result_list = input_result.split()
+        derived_result = valid_acc["data"]["account_name"]
+        derived_result = derived_result.lower()
+        derived_result_list = derived_result.split()
+
+        result = set(input_result_list).issubset(derived_result_list)
+        print(derived_result_list)
+        print(input_result_list)
+
+        if not result:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "bank details are not corresponding, please check inputs",
+                    }
+                ),
+                400,
+            )
+
+        p_client = PaystackClient()
+
+        payload = {
+            "type": "nuban",
+            "name": valid_acc["data"]["account_name"],
+            "account_number": valid_acc["data"]["account_number"],
+            "bank_code": valid_acc["bank_code"],
+            "currency": "NGN",
+        }
+
+        response, response_code = p_client.create_transfer_receipient(payload=payload)
+
+        if not response["status"]:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "error creating transfer receipient for business",
+                    }
+                ),
+                response_code,
+            )
+
+        resp_data = response["data"]
 
         new_business = BusinessDetails(
             name=data.get("name"),
@@ -359,8 +420,11 @@ def register_business():
             country_of_operation=data.get("country_of_operation"),
             state_of_operation=data.get("state_of_operation"),
             product_sold=data.get("product_sold"),
-            bank_account_number=data.get("bank_account_number"),
-            bank_account_name=data.get("bank_account_name"),
+            bank_name=resp_data["details"]["bank_number"],
+            bank_account_number=resp_data["details"]["account_number"],
+            bank_account_name=resp_data["details"]["account_name"],
+            bank_account_code=resp_data["details"]["bank_code"],
+            receipient_code=resp_data["recipient_code"],
             upper_bound_product_price_range=data.get("upper_price_range"),
             lower_bound_product_price_range=data.get("lower_price_range"),
             merchant=current_merchant,
@@ -370,8 +434,11 @@ def register_business():
         db.session.add(new_business)
         db.session.commit()
 
-        return jsonify(
-            {"status": "success", "message": "business registered successfully"}
+        return (
+            jsonify(
+                {"status": "success", "message": "business registered successfully"}
+            ),
+            200,
         )
     except Exception as e:
         db.session.rollback()
