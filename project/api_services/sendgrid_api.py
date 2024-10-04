@@ -34,7 +34,6 @@ class Mailer:
         except Exception as e:
             print(e)
 
-    @celery.task
     def send_verification_mail(self, email, name):
         try:
             token = self.SERIALIZER.dumps(email, salt="email-confirm-salt")
@@ -72,7 +71,6 @@ class Mailer:
             print(e)
             return (e), 400
 
-    @celery.task
     def send_payment_confirmation_mail(self, email, payload):
         try:
             message = Mail(

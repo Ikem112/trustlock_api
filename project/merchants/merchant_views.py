@@ -274,7 +274,9 @@ def send_verification_email():
 
         mailer = Mailer()
 
-        data, status = mailer.send_verification_mail(email_address, first_name)
+        data, status = mailer.send_verification_mail(
+            email=email_address, name=first_name
+        )
 
         print("sent the mail")
         print(data)
@@ -305,6 +307,9 @@ def verify_email_address(token):
             print("verified_email")
             user = r_client.get(f"token-{token}").decode("utf-8")
             update_merchant = Merchant.query.filter_by(id=user).first()
+            if update_merchant.email_verified == True:
+                return jsonify({"message": "Email has already been verified successfully."}), 200
+
             update_merchant.email_verified = True
             db.session.commit()
             print("successfully verified mail")
@@ -420,7 +425,7 @@ def register_business():
             country_of_operation=data.get("country_of_operation"),
             state_of_operation=data.get("state_of_operation"),
             product_sold=data.get("product_sold"),
-            bank_name=resp_data["details"]["bank_number"],
+            bank_name=resp_data["details"]["bank_name"],
             bank_account_number=resp_data["details"]["account_number"],
             bank_account_name=resp_data["details"]["account_name"],
             bank_account_code=resp_data["details"]["bank_code"],

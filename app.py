@@ -31,5 +31,5 @@ def make_shell_context():
 
 
 if __name__ == "__main__":
-    start_scheduler()
+    # start_scheduler()
     app.run(host="0.0.0.0", port=80)

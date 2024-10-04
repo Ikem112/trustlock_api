@@ -77,16 +77,15 @@ class PaystackClient:
             print(e)
             return (e), 400
 
-    def initiate_tranfer_to_people(self, payload: dict):
-        # try:
-        #     url = f"{self.BASE_URL}/transfer"
-        #     body = json.dumps(payload)
-        #     response = requests.post(url, data=body, headers=self.headers)
-        #     return response.json(), response.status_code
-        # except Exception as e:
-        #     print(e)
-        #     return (e), 400
-        pass
+    def initiate_payout(self, payload: dict):
+        try:
+            url = f"{self.BASE_URL}/transfer"
+            body = json.dumps(payload)
+            response = requests.post(url, data=body, headers=self.headers)
+            return response.json(), response.status_code
+        except Exception as e:
+            print(e)
+            return (e), 400
 
 
 # !!! FUNCTIONS TO STREAMLINE PAYSTACK SERVICES !!!

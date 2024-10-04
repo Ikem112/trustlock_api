@@ -18,3 +18,24 @@ def api_secret_key_required(f):
         return f(*args, **kwargs)
 
     return decorated_function
+
+
+def order_exists(f):
+    from project.merchants.models import Order
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+
+        ref_no = kwargs.get("ref_no")
+        target_order = Order.query.filter_by(reference_no=ref_no).first()
+
+        if not target_order:
+            return (
+                jsonify(
+                    {"status": "error", "message": f"order {ref_no} doesn't exist"}
+                ),
+                400,
+            )
+        return f(*args, **kwargs)
+
+    return decorated_function

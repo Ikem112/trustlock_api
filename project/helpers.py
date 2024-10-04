@@ -1,6 +1,12 @@
 from jinja2 import Environment, FileSystemLoader
 import redis
 import math
+from flask import Request
+import os
+import dotenv
+import json
+import hmac
+import hashlib
 
 
 def get_email_html_template(file_name, name, verification_url):
@@ -93,3 +99,29 @@ def calculate_fees(price: float) -> tuple:
         escrow_fee = round_up(escrow_fee, 2)
         process_fee = 5_000.00
         return escrow_fee, process_fee, escrow_percent
+
+
+def signature_validation(request: Request, service: str):
+    secret_code = "KORA_SECRETKEY" if service == "kora" else "PAYSTACK_SECRETKEY"
+    signature_header = (
+        "x-korapay-signature" if service == "kora" else "x-paystack-signature"
+    )
+
+    secret_key = os.environ.get(secret_code).encode("utf-8")
+    received_signature = request.headers.get(signature_header)
+    request_data = request.get_json()
+    data_to_verify = (
+        json.dumps(request_data["data"], separators=(",", ":")).encode("utf-8")
+        if service == "kora"
+        else request.get_data()
+    )
+    calculated_hash = hmac.new(
+        secret_key,
+        data_to_verify,
+        hashlib.sha256 if service == "kora" else hashlib.sha512,
+    ).hexdigest()
+    print(calculated_hash, received_signature)
+    if hmac.compare_digest(calculated_hash, received_signature):
+        return True
+    else:
+        return False

@@ -7,6 +7,7 @@ from flask_bcrypt import Bcrypt
 from flask_apscheduler import APScheduler
 from .config import configuration
 import redis
+import multiprocessing
 
 
 # instantiating flask modules
@@ -32,6 +33,7 @@ def create_app(config_type=configuration["development"]):
     bcrypt.init_app(app)
     scheduler.init_app(app)
     migrate.init_app(app, db)
+    app.lock = multiprocessing.Lock()
 
     status = "dev"
 
