@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timedelta
 from project import db, ma
+from sqlalchemy import LargeBinary
 
 
 def unique_id():
@@ -152,6 +153,7 @@ class Order(db.Model):
     payment_abandoned = db.Column(db.Boolean, default=False, nullable=False)
     full_payment_verified = db.Column(db.Boolean, default=False, nullable=False)
     delivery_time_triggered = db.Column(db.Boolean, default=False, nullable=False)
+    delivery_time_elapsed = db.Column(db.Boolean, default=False)
     need_to_balance = db.Column(db.Boolean, default=False, nullable=False)
     product_overpay = db.Column(db.Boolean, default=False, nullable=False)
     partial_dispersals = db.Column(db.Boolean, default=False, nullable=False)
@@ -172,11 +174,19 @@ class Order(db.Model):
     date_seller_confirm_delivery = db.Column(db.DateTime, default=None)
     date_buyer_confirm_delivery = db.Column(db.DateTime, default=None)
     inspection_time_triggered = db.Column(db.Boolean, default=False, nullable=False)
+    inspection_time_elapsed = db.Column(db.Boolean, default=False)
     conditions_set = db.Column(db.Boolean, default=False, nullable=False)
     conditions_met = db.Column(db.Boolean, default=False, nullable=False)
     dispute_raised = db.Column(db.Boolean, default=False, nullable=False)
+    dispute_raised_date = db.Column(db.DateTime, default=None)
+    dispute_time_triggered = db.Column(db.Boolean, default=False)
+    dispute_time_elapsed = db.Column(db.Boolean, default=False)
     dispute_ongoing = db.Column(db.Boolean, default=False, nullable=False)
     dispute_resloved = db.Column(db.Boolean, default=False, nullable=False)
+    dispute_conclusion = db.Column(db.String(20), default=None)
+    arbitration_required = db.Column(db.Boolean, default=False)
+    arbitration_ongoing = db.Column(db.Boolean, default=False)
+    arbitration_conluded = db.Column(db.Boolean, default=False)
     product_to_be_returned = db.Column(db.Boolean, default=False, nullable=False)
     product_return_commenced = db.Column(db.Boolean, default=False, nullable=False)
     product_return_confirm_buyer = db.Column(db.Boolean, default=False, nullable=False)
@@ -203,7 +213,7 @@ class Order(db.Model):
         "OrderDetails", cascade="all,delete", backref="order", uselist=False
     )
     delivery_information = db.relationship(
-        "DeliveryInformation", cascade="all,delete", backref="order"
+        "DeliveryInformation", cascade="all,delete", backref="order", uselist=False
     )
     transaction_history = db.relationship(
         "TransactionHistory", cascade="all,delete", backref="order"
@@ -218,9 +228,15 @@ class Order(db.Model):
     customer = db.relationship(
         "Customer", cascade="all,delete", backref="order", uselist=False
     )
+    product_return = db.relationship(
+        "ProductReturn", cascade="all,delete", backref="order", uselist=False
+    )
+    arbitration = db.relationship(
+        "Arbitration", cascade="all,delete", backref="order", uselist=False
+    )
 
     def __repr__(self):
-        return f"Transaction --- {self.product_name}, {self.amount_verified}---{self.initial_amount_received}, product deliverd: {self.product_delivered}, escrow percent: {self.escrow_percent}, {self.transaction_closed}"
+        return f"Transaction --- {self.reference_no}"
 
 
 class OrderSchema(ma.Schema):
@@ -229,6 +245,7 @@ class OrderSchema(ma.Schema):
     transaction_history = ma.Nested("TransactionHistorySchema", many=True)
     transaction_condition = ma.Nested("TransactionConditionSchema", many=True)
     transaction_timeline = ma.Nested("TransactionTimelineSchema", many=True)
+    product_return = ma.Nested("ProductReturnSchema")
     dispute = ma.Nested("DisputeSchema", many=True)
     customer = ma.Nested("CustomerSchema")
 
@@ -376,10 +393,11 @@ class TransactionCondition(db.Model):
     date_added = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     date_met = db.Column(db.DateTime, default=None)
     dispute_raised = db.Column(db.Boolean, default=False, nullable=False)
+    dispute_settled = db.Column(db.Boolean, default=False)
     order_id = db.Column(db.String(50), db.ForeignKey("Order.id"))
 
     def __repr__(self):
-        return f" trans condition --- {self.condition_title},  party_conditioner --- {self.party_to_meet_condition}, condition met -- {self.condition_met}, date -- {self.date_added}"
+        return f" trans condition --- {self.condition_title}; condition met -- {self.condition_met}; date -- {self.date_added}"
 
 
 class TransactionConditionSchema(ma.Schema):
@@ -428,6 +446,59 @@ class DisputeSchema(ma.Schema):
         )
 
 
+class Arbitration(db.Model):
+    __tablename__ = "Arbitration"
+
+    id = db.Column(
+        db.String(50), primary_key=True, nullable=False, default=unique_id, index=True
+    )
+    independent_body_name = db.Column(db.String(30), nullable=False)
+    ongoing = db.Column(db.Boolean, default=False, nullable=False)
+    initiation_date = db.Column(db.DateTime, default=datetime.utcnow)
+    arbitrate_fees = db.Column(db.Float)
+    contract_name = db.Column(db.String(30), nullable=False)
+    contract_data = db.Column(LargeBinary, nullable=False)  # Store file as binary data
+    mimetype = db.Column(db.String(50), nullable=False)  # Store file type
+    conclusion = db.Column(db.String(30))
+    party_to_remit = db.Column(db.String(30))
+    resolve_date = db.Column(db.DateTime)
+    order_id = db.Column(db.String(50), db.ForeignKey("Order.id"))
+
+
+class ProductReturn(db.Model):
+    __tablename__ = "ProductReturn"
+
+    id = db.Column(
+        db.String(50), primary_key=True, nullable=False, default=unique_id, index=True
+    )
+    buyer_initiates_return = db.Column(db.Boolean, default=True, nullable=False)
+    date_initiated_return = db.Column(db.DateTime, default=datetime.utcnow)
+    product_in_transit = db.Column(db.Boolean, default=False, nullable=False)
+    product_sent_out = db.Column(db.Boolean, default=False, nullable=False)
+    date_product_sent_out = db.Column(db.DateTime)
+    time_for_return = db.Column(db.Integer)
+    buyer_confirm_return = db.Column(db.Boolean, default=False, nullable=False)
+    date_buyer_confirm_return = db.Column(db.DateTime)
+    seller_confirm_return = db.Column(db.Boolean, default=False, nullable=False)
+    date_seller_confirm_return = db.Column(db.DateTime)
+    returned_product_inspection_time_triggered = db.Column(
+        db.Boolean, default=False, nullable=False
+    )
+    date_returned_product_inspection_time_triggered = db.Column(db.DateTime)
+    returned_product_inspection_time = db.Column(db.Integer, default=1)
+    seller_accept_return_condition = db.Column(db.Boolean, default=None)
+    return_issue = db.Column(db.Text, default=None)
+    party_negotiation = db.Column(db.Boolean, default=False, nullable=False)
+    negotiation_result = db.Column(db.Text, default=None)
+    arbitration_needed = db.Column(db.Boolean, default=False, nullable=False)
+    arbitrator_used = db.Column(db.String(50), default=None)
+    arbitrator_agreement_reached = db.Column(db.Boolean, default=False, nullable=False)
+    product_return_complete = db.Column(db.Boolean, default=False, nullable=False)
+    amount_to_refund = db.Column(db.Float, nullable=False)
+    date_of_completion = db.Column(db.DateTime)
+    order_id = db.Column(db.String(50), db.ForeignKey("Order.id"))
+
+
 class TransactionTimeline(db.Model):
     __tablename__ = "TransactionTimeline"
 
@@ -454,6 +525,8 @@ class DeliveryInformation(db.Model):
     id = db.Column(
         db.String(50), primary_key=True, nullable=False, default=unique_id, index=True
     )
+    event = db.Column(db.String(30), nullable=False)
+    delivery_description = db.Column(db.String(30), default=None)
     delivery_courier = db.Column(db.String(30), default=None)
     source_location = db.Column(db.Text, nullable=False)
     destination_location = db.Column(db.Text, nullable=False)

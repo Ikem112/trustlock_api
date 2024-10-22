@@ -308,7 +308,12 @@ def verify_email_address(token):
             user = r_client.get(f"token-{token}").decode("utf-8")
             update_merchant = Merchant.query.filter_by(id=user).first()
             if update_merchant.email_verified == True:
-                return jsonify({"message": "Email has already been verified successfully."}), 200
+                return (
+                    jsonify(
+                        {"message": "Email has already been verified successfully."}
+                    ),
+                    200,
+                )
 
             update_merchant.email_verified = True
             db.session.commit()

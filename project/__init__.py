@@ -18,7 +18,7 @@ jwt = JWTManager()
 bcrypt = Bcrypt()
 migrate = Migrate()
 scheduler = APScheduler()
-r_client = redis.Redis(host="localhost", port=6379, db=0)
+r_client = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
 
 
 # function that initialises the modules, blueprints and config keys with the app object
@@ -46,6 +46,10 @@ def create_app(config_type=configuration["development"]):
         from .transactions import transaction as transaction
 
         app.register_blueprint(transaction, url_prefix=f"/api/{status}/v1")
+
+        from .disputes import dispute as dispute
+
+        app.register_blueprint(dispute, url_prefix=f"/api/{status}/v1")
 
     return app
 

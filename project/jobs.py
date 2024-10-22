@@ -21,6 +21,8 @@ def check_inspection_dates():
         orders = Order.query.filter_by(product_inspected=False).all()
 
         for order in orders:
+
+            # add conditions to ensure that disputed orders do not count and alos orders that conditions have been met.
             print(order.id)
             if order.product_delivered:
                 inspection_time = order.inspection_time

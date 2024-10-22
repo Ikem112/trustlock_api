@@ -1,12 +1,11 @@
 from datetime import timedelta, datetime
-import json
+
 import hmac
 import hashlib
 import os
 from dotenv import load_dotenv
 import uuid
 from nanoid import generate
-import bcrypt
 from flask import request, jsonify, current_app
 
 from flask_jwt_extended import (
@@ -173,7 +172,7 @@ def initialize_order():
 
         order_schema = OrderSchema()
         order = order_schema.dump(new_order)
-
+        r_client.rpush("order_ref_nos", ref_no)
         db.session.add(new_order)
         db.session.add(new_order_details)
         db.session.add(customer)
@@ -277,24 +276,28 @@ def set_conditions(ref_no):
 
         conditions = data.get("conditions")
 
-        for new_condition in conditions:
+        for condition in conditions:
 
             new_condition = TransactionCondition(
-                condition_title=new_condition.get("condition_title"),
-                condition_description=new_condition.get("condition_description"),
-                partial_disburse_requisite=new_condition.get(
-                    "partial_disburse_requisite"
+                condition_title=condition.get("condition_title"),
+                condition_description=condition.get("condition_description"),
+                partial_disburse_requisite=condition.get(
+                    "partial_disburse_requisite", False
                 )
                 if target_order.partial_disbursements
                 else None,
                 order=target_order,
             )
 
-            db.session.add(new_condition)
+            new_timeline = TransactionTimeline(
+                event_occurrance=f"Condition '{condition.get('condition_title')}' has been set",
+                category="Conditions",
+                order=target_order,
+            )
+
+            db.session.add_all([new_condition, new_timeline])
 
         target_order.conditions_set = True
-
-        # add timeline for new conditons being set
         db.session.commit()
 
         return (
@@ -428,7 +431,7 @@ def verify_payment():
         if not response["status"]:
             return jsonify({"status": "error", "message": response["message"]}), 400
 
-        info_dict = r_client.get(f"ref_no_{ref_no}").decode("utf-8")
+        info_dict = r_client.get(f"ref_no_{ref_no}")
         info_dict = json.loads(info_dict)
         order_ref_no = info_dict["order_refno"]
 
@@ -623,6 +626,7 @@ def verify_payment():
                 current_user.orders.customer.email_address, payload
             )
             print(data, status)
+            # MAKE THIS A THREAD!!!!!
             return (
                 jsonify(
                     {
@@ -712,7 +716,7 @@ def confirm_product_sentout(ref_no):
     try:
         target_order = Order.query.filter_by(reference_no=ref_no).first()
 
-        if not target_order.full_payment_verified and target_order.order_commenced:
+        if not (target_order.full_payment_verified and target_order.order_commenced):
             return (
                 jsonify({"status": "error", "message": "payment hasnt been made"}),
                 400,
@@ -766,7 +770,7 @@ def seller_confirm_delivery(ref_no):
 
         target_order = Order.query.filter_by(reference_no=ref_no).first()
 
-        if not target_order.product_sentout:
+        if not target_order.product_sent_out:
             return (
                 jsonify({"status": "error", "message": "product hasnt been sentout"}),
                 400,
@@ -824,7 +828,7 @@ def buyer_confirm_delivery(ref_no):
 
         target_order = Order.query.filter_by(reference_no=ref_no).first()
 
-        if not target_order.product_sentout:
+        if not target_order.product_sent_out:
             return (
                 jsonify({"status": "error", "message": "product hasnt been sentout"}),
                 400,
@@ -1014,16 +1018,18 @@ def validate_all_conditions(ref_no):
             )
 
         for condition in target_order.transaction_condition:
-            condition.condition_met = True
-            condition.date_met = datetime.utcnow()
-            new_timeline = TransactionTimeline(
-                event_occurrance=f"Condition {condition.id} has been confirmed as met",
-                category="Condition Confirmation",
-                order=target_order,
-            )
+            if condition.condition_met == True:
+                pass
+            else:
+                condition.condition_met = True
+                condition.date_met = datetime.utcnow()
+                new_timeline = TransactionTimeline(
+                    event_occurrance=f"Condition {condition.id} has been confirmed as met",
+                    category="Condition Confirmation",
+                    order=target_order,
+                )
 
-            db.session.add(new_timeline)
-            db.session.commit()
+                db.session.add(new_timeline)
 
         target_order.conditions_met = True
         target_order.date_updated = datetime.utcnow()
@@ -1323,7 +1329,7 @@ def verify_kora_transaction_callback():
             if data["event"] == "transfer.success":
                 trans_data = data.get("data")
                 trans_ref = trans_data["reference"]
-                order_refno = r_client.get(trans_ref).decode("utf-8")
+                order_refno = r_client.get(trans_ref)
                 target_order = Order.query.filter_by(reference_no=order_refno).first()
                 merchant = Merchant.query.filter_by(id=target_order.merchant_id).first()
 
@@ -1372,7 +1378,7 @@ def verify_kora_transaction_callback():
                         order=target_order,
                     )
 
-                    db.session.add_all(new_transaction, new_timeline)
+                    db.session.add_all([new_transaction, new_timeline])
                     db.session.commit()
 
                     response["result"] = "Task completed successfully."
@@ -1471,6 +1477,70 @@ def verify_kora_transaction_callback():
                             ),
                             400,
                         )
+
+                if trans_ref.startswith("k_refund"):
+                    if target_order.refund_dispatched:
+                        return (
+                            jsonify(
+                                status="success",
+                                message="transaction has already been verified",
+                            ),
+                            200,
+                        )
+                    customer_name = f"{target_order.customer.first_name} {target_order.customer.last_name}"
+                    target_order.full_amount_refunded = (
+                        True
+                        if not target_order.partial_disbursement_dispatched
+                        else False
+                    )
+                    target_order.order_details.amount_refunded = trans_data["amount"]
+                    target_order.order_details.current_holdings_amount -= trans_data[
+                        "amount"
+                    ]
+                    target_order.order_details.date_updated = datetime.utcnow()
+                    target_order.refund_processing = False
+                    target_order.refund_dispatched = True
+                    target_order.date_updated = datetime.utcnow()
+                    target_order.order_closed = True
+                    target_order.date_closed = datetime.utcnow()
+
+                    new_transaction = TransactionHistory(
+                        amount=trans_data["amount"],
+                        status="Success",
+                        trans_reference=trans_ref,
+                        sender="TrustLock Holdings",
+                        receiver=customer_name,
+                        description=f"Refund of funds to {customer_name} due to return of order {order_refno}",
+                        remark=f"Korapay Limited refund to TrustLock customer {customer_name}",
+                        order=target_order,
+                    )
+
+                    new_timeline = TransactionTimeline(
+                        event_occurrance=f"Refund of {trans_data['amount']} to {customer_name} successfully verified.",
+                        category="Refund",
+                        order=target_order,
+                    )
+
+                    new_timeline1 = TransactionTimeline(
+                        event_occurrance=f"Order {order_refno} has been successfully closed",
+                        category="Order Close",
+                        order=target_order,
+                    )
+
+                    db.session.add_all([new_transaction, new_timeline, new_timeline1])
+                    db.session.commit()
+                    # SEND EMAIL TO INFORM PARTIES THAT REFUND WAS SUCCESSFUL AND ORDER HAS BEEN CLOSED
+
+                    response["result"] = "Task completed successfully."
+                    return (
+                        jsonify(
+                            {
+                                "status": "success",
+                                "message": "successfully verified refund",
+                            }
+                        ),
+                        200,
+                    )
 
             elif data["event"] == "transfer.failed":
                 # ADD LOGIC TO PROCESS TRANSACTION WHEN THE ATTEMPT FAILED
@@ -1686,7 +1756,7 @@ def verify_paystack_transaction_callback():
                 )
 
             if data["event"] == "charge.success":
-                print(data["data"])
+                print(json.dumps(data["data"], indent=4))
                 return jsonify({"status": True, "message": "callback successful"}), 200
         else:
             response["result"] = "Task completed successfully."
@@ -1851,6 +1921,7 @@ def initialize_seller_payout(ref_no):
                 r_client.set(k_ref, ref_no)
                 target_order.seller_disbursement_initiated = True
                 target_order.seller_disbursement_processing = True
+                target_order.date_updated = datetime.utcnow()
                 new_timeline = TransactionTimeline(
                     event_occurrance=f"Full Disbursements have been successfully initiated with ref_no {k_ref}",
                     category="Disbursement Initiation",
@@ -1889,6 +1960,7 @@ def initialize_seller_payout(ref_no):
             r_client.set(pk_ref, json.dumps(info_dict))
             target_order.seller_disbursement_initiated = True
             target_order.seller_disbursement_processing = True
+            target_order.date_updated = datetime.utcnow()
             new_timeline = TransactionTimeline(
                 event_occurrance=f"Full Disbursements have been successfully initiated with ref_no {pk_ref}",
                 category="Disbursement Initiation",
@@ -1985,5 +2057,63 @@ def get_transaction_timeline(ref_no):
         )
 
     except Exception as e:
+        print(e)
+        return jsonify({"status": "error", "message": "something went wrong"}), 500
+
+
+@transaction.post("rate_order/<ref_no>")
+@jwt_required()
+@api_secret_key_required
+@order_exists
+def rate_order(ref_no):
+    try:
+        data = request.get_json()
+
+        target_order = Order.query.filter_by(reference_no=ref_no).first()
+
+        if not target_order.order_closed:
+            return (
+                jsonify(
+                    status="error",
+                    message="please ensure order is concluded before leaving a rating",
+                ),
+                400,
+            )
+
+        if target_order.order_rated:
+            return jsonify(status="error", message="order has already been rated"), 400
+
+        rating = int(data["order_rating"])
+
+        if rating < 0 or rating > 5:
+            return (
+                jsonify(
+                    status="error",
+                    message="please only give a rating between 0 and 5. 0 being worst and 5 being the best",
+                ),
+                400,
+            )
+
+        target_order.order_details.order_rating = rating
+        target_order.order_details = data["order_feedback"]
+        target_order.order_rated = True
+
+        new_timeline = TransactionTimeline(
+            event_occurrance=f"Order {ref_no} was given a rating of {rating}",
+            category="Order Rating",
+            order=target_order,
+        )
+
+        db.session.add(new_timeline)
+        db.session.commit()
+
+        # send mail to thank customer for feedback
+        return jsonify(
+            status="success",
+            message="successfully rated order, thank you for using our services. Hope to see you soon!",
+        )
+
+    except Exception as e:
+        db.session.rollback()
         print(e)
         return jsonify({"status": "error", "message": "something went wrong"}), 500

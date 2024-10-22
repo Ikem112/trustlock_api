@@ -7,6 +7,7 @@ import dotenv
 import json
 import hmac
 import hashlib
+from project import r_client
 
 
 def get_email_html_template(file_name, name, verification_url):
@@ -124,4 +125,15 @@ def signature_validation(request: Request, service: str):
     if hmac.compare_digest(calculated_hash, received_signature):
         return True
     else:
+        return False
+
+
+def redis_confirmation() -> bool:
+    try:
+        response = r_client.ping()
+        if response:
+            print("Redis server is running.")
+            return True
+    except:
+        print("Failed to connect to Redis server.")
         return False
