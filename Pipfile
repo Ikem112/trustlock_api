@@ -24,6 +24,10 @@ nanoid = "*"
 celery = {extras = ["redis"], version = "*"}
 apscheduler = "*"
 flask-apscheduler = "*"
+loguru = "*"
+pymongo = "*"
+flask-pymongo = "*"
+flask-mongoengine = "*"
 
 [dev-packages]
 

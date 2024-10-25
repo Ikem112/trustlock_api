@@ -48,6 +48,7 @@ load_dotenv()
 
 @merchant.post("/register_merchant")
 def register_merchant():
+    log_state = str()
     try:
         data = request.get_json()
 

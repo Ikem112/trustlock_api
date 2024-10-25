@@ -10,6 +10,11 @@ class DevelopmentConfig:
     SQLALCHEMY_DATABASE_URI = (
         "postgresql://postgres:OmoLewa223@localhost/trustlock_test_db"
     )
+    MONGO_SETTINGS = {
+        "db": "logger_db",
+        "host": "localhost",
+        "port": 27017,
+    }
     JWT_SECRET_KEY = "dev_jwt_secret_key"
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=12)
 
