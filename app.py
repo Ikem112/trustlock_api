@@ -1,4 +1,4 @@
-from project import create_app, scheduler
+from project import create_app, scheduler, status
 from project.api_services.paystack_api import PaystackClient
 
 
@@ -32,4 +32,7 @@ def make_shell_context():
 
 if __name__ == "__main__":
     # start_scheduler()
-    app.run(host="0.0.0.0", port=80)
+    if status == "test":
+        app.run(host="0.0.0.0", port=80)
+    else:
+        app.run()
