@@ -24,6 +24,7 @@ nanoid = "*"
 celery = {extras = ["redis"], version = "*"}
 apscheduler = "*"
 flask-apscheduler = "*"
+gunicorn = "*"
 
 [dev-packages]
 
