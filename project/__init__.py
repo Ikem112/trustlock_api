@@ -4,7 +4,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from flask_migrate import Migrate
 from flask_bcrypt import Bcrypt
-from flask_mongoengine import MongoEngine
 from flask_apscheduler import APScheduler
 from .config import configuration
 import redis
@@ -24,7 +23,6 @@ ma = Marshmallow()
 jwt = JWTManager()
 bcrypt = Bcrypt()
 migrate = Migrate()
-mdb = MongoEngine()
 scheduler = APScheduler()
 r_client = (
     redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
@@ -45,7 +43,6 @@ def create_app(
     db.init_app(app)
     jwt.init_app(app)
     bcrypt.init_app(app)
-    mdb.init_app(app)
     scheduler.init_app(app)
     migrate.init_app(app, db)
     app.lock = multiprocessing.Lock()
