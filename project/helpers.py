@@ -3,13 +3,13 @@ import redis
 import math
 from flask import Request
 import os
-import dotenv
+from dotenv import load_dotenv
 import json
 import hmac
 import hashlib
 from project import r_client
 
-dotenv()
+load_dotenv()
 
 
 def get_email_html_template(file_name, name, verification_url):
