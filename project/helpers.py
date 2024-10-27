@@ -9,13 +9,14 @@ import hmac
 import hashlib
 from project import r_client
 
+dotenv()
+
 
 def get_email_html_template(file_name, name, verification_url):
-    env = Environment(
-        loader=FileSystemLoader(
-            "C:\\Users\\VP\\OneDrive\\Desktop\\trustLock_api\\project\\html_templates"
-        )
+    template_dir = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "html_templates"
     )
+    env = Environment(loader=FileSystemLoader(template_dir))
 
     template = env.get_template(file_name)
 
@@ -27,11 +28,10 @@ def get_email_html_template(file_name, name, verification_url):
 
 
 def get_payment_verification_template(file_name, payload: dict):
-    env = Environment(
-        loader=FileSystemLoader(
-            "C:\\Users\\VP\\OneDrive\\Desktop\\trustLock_api\\project\\html_templates"
-        )
+    template_dir = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "html_templates"
     )
+    env = Environment(loader=FileSystemLoader(template_dir))
 
     template = env.get_template(file_name)
 

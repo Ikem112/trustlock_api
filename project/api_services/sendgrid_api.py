@@ -14,7 +14,7 @@ from sendgrid.helpers.mail import (
 )
 from itsdangerous import URLSafeTimedSerializer
 from project.helpers import get_email_html_template, get_payment_verification_template
-
+from project import status
 
 load_dotenv()
 
@@ -37,7 +37,12 @@ class Mailer:
     def send_verification_mail(self, email, name):
         try:
             token = self.SERIALIZER.dumps(email, salt="email-confirm-salt")
-            verification_url = f"https://elegant-buck-deciding.ngrok-free.app/api/dev/v1/verify_email/{token}"
+            base_url = (
+                "https://elegant-buck-deciding.ngrok-free.app/api/dev/v1/"
+                if status == "dev"
+                else "https://trustlock-api.onrender.com/api/prod/v1/"
+            )
+            verification_url = f"{base_url}verify_email/{token}"
 
             message = Mail(
                 from_email=self.SENDER_EMAIL_ADDRESS,
