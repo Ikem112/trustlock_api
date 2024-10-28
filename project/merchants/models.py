@@ -29,7 +29,7 @@ class Merchant(db.Model):
     orders = db.relationship("Order", backref="merchant")
 
     def __repr__(self):
-        return f"Merchant(id={self.id})"
+        return f"Merchant __ id = {self.id} __ email_ver = {self.email_verified} __ reg_bus = {self.registered_business} __ acc = {self.account_creation_complete} __ crb = {self.confirmed_registered_business} "
 
 
 class MerchantSchema(ma.Schema):
