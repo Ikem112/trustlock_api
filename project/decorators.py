@@ -43,6 +43,8 @@ def order_exists(f):
             return f(*args, **kwargs)
 
         orders = r_client.lrange("order_ref_nos", 0, -1)
+        print(orders)
+        print(ref_no)
         if ref_no not in orders:
             return (
                 jsonify(
