@@ -27,7 +27,13 @@ scheduler = APScheduler()
 r_client = (
     redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
     if status == "dev"
-    else redis.from_url(os.environ.get("REDIS_URI"), decode_responses=True)
+    else redis.Redis(
+        host=os.environ.get("REDIS_HOST"),
+        port=os.environ.get("REDIS_PORT"),
+        password=os.environ.get("REDIS_PASSWORD"),
+        db=0,
+        decode_responses=True,
+    )
 )
 
 
